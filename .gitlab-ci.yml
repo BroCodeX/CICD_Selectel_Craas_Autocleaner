@@ -18,12 +18,13 @@ stages:
 variables:
   KEEP_LAST_N: "10"
   PYTHON_IMAGE: registry.example.ru/devops/docker-images/python:latest
+  DRY_RUN: "true"
 
 .python_env:
   image:
     name: ${PYTHON_IMAGE}
     entrypoint: [ "" ]
-  tags: &docker-runner
+  tags:
     - some-runner01
 
 # ---------------- TEST ----------------
@@ -50,16 +51,11 @@ registry_cleanup_plan:
   extends: .python_env
   needs: ["run_code_tests"]
   stage: plan
-  tags: *docker-runner
   script:
     - python cleanup_registry.py
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $CI_DEFAULT_BRANCH'
-      variables:
-        DRY_RUN: "true"
     - if: '$CI_PIPELINE_SOURCE == "web"'
-      variables:
-        DRY_RUN: "true"
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
       when: never
 
@@ -68,18 +64,13 @@ registry_cleanup_execute:
   extends: .python_env
   needs: ["run_code_tests"]
   stage: cleanup
-  tags: *docker-runner
+  variables:
+    DRY_RUN: "false"
   script:
     - python cleanup_registry.py
   rules:
     - if: '$CI_PIPELINE_SOURCE == "web"'
       when: manual
-      variables:
-        DRY_RUN: "false"
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       when: manual
-      variables:
-        DRY_RUN: "false"
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
-      variables:
-        DRY_RUN: "false"
