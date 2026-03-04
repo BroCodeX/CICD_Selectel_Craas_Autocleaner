@@ -27,7 +27,7 @@ variables:
   tags:
     - some-runner01
 
-# ---------------- TEST ----------------
+# ---------------- TESTS ----------------
 run_code_tests:
   extends: .python_env
   stage: test
@@ -51,12 +51,14 @@ run_code_tests:
           - "**/*.yml"
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       changes: *change_files
-    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - when: never
 
 # ---------------- PLAN ----------------
 registry_cleanup_plan:
   extends: .python_env
-  needs: ["run_code_tests"]
+  needs: 
+      - job: "run_code_tests"
+        optional: true
   stage: plan
   script:
     - python cleanup_registry.py
@@ -69,7 +71,11 @@ registry_cleanup_plan:
 # ---------------- CLEANUP ----------------
 registry_cleanup_execute:
   extends: .python_env
-  needs: ["run_code_tests"]
+  needs: 
+    - job: "run_code_tests"
+      optional: true
+    - job: "registry_cleanup_plan"
+      optional: true
   stage: cleanup
   variables:
     DRY_RUN: "false"
@@ -81,3 +87,4 @@ registry_cleanup_execute:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       when: manual
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - when: never
