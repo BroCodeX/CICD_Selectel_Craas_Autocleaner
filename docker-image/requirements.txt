@@ -2,3 +2,5 @@ loguru==0.7.3
 pylint==4.0.5
 PyYAML==6.0.3
 requests==2.32.5
+unittest-xml-reporting==4.0.0
+pytest==9.0.2
