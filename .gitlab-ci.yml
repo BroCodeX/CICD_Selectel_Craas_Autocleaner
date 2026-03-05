@@ -32,6 +32,7 @@ run_code_tests:
   stage: test
   variables:
     PYTHONDONTWRITEBYTECODE: "1"
+    PYTHONPATH: "."
     PYLINT_OPTS: "--disable=all --enable=F,E,W --disable=W0718 --fail-under=9.0"
     PYLINT_FILES: "*.py"
     TEST_DIR: "tests"
