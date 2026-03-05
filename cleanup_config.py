@@ -2,6 +2,7 @@ import os
 import sys
 import yaml
 from loguru import logger
+from constants import ImageFields, ConfigFields
 
 DEFAULT_CONFIG_PATH = ".config/cleanup_rules.yaml"
 
@@ -29,7 +30,7 @@ def load_cleanup_config():
             logger.critical(f"Rule '{rule_name}' must be a dictionary")
             sys.exit(1)
 
-        regexp = rule.get("regexp")
+        regexp = rule.get(ConfigFields.REGEXP.value)
         if not isinstance(regexp, str) or not regexp.strip():
             logger.critical(f"Rule '{rule_name}' has no valid regexp")
             sys.exit(1)

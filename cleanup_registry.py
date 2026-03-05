@@ -22,7 +22,6 @@ PASSWORD = os.getenv("SEL_PASSWORD")
 ACCOUNT_ID = os.getenv("SEL_ACCOUNT_ID")
 PROJECT_NAME = os.getenv("SEL_PROJECT_NAME")
 REGISTRY_ID = os.getenv("SEL_REGISTRY_ID")
-KEEP_LAST_N = int(os.getenv("KEEP_LAST_N", "10"))
 DRY_RUN = os.getenv("DRY_RUN", "false").lower() == "true"
 
 AUTH_URL = "https://cloud.api.selcloud.ru/identity/v3/auth/tokens"
@@ -94,7 +93,7 @@ def main():
             logger.info(f"\nRepository: {repo_name}")
 
             images = get_images(session, BASE_URL, REGISTRY_ID, token, repo_name)
-            to_delete = select_images_to_delete(repo_name, images, rules, KEEP_LAST_N)
+            to_delete = select_images_to_delete(repo_name, images, rules)
             
             if not to_delete:
                 logger.debug(f"{repo_name}: no images to delete")

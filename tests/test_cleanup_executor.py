@@ -11,6 +11,7 @@ def test_select_images_to_delete_by_rule_keep_latest():
         "logistics_review": {
             "regexp": r"logistics-service:.*-review-.*",
             "keep_latest": 1,
+            "remove_older": 0,
         }
     }
 
@@ -36,7 +37,6 @@ def test_select_images_to_delete_by_rule_keep_latest():
         repo_name="logistics-service",
         images=images,
         cleanup_rules=rules,
-        default_keep_latest=10,
     )
 
     assert [i["digest"] for i in to_delete] == ["sha256:2", "sha256:3"]

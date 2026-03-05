@@ -12,7 +12,8 @@ https://docs.selectel.ru/api/craas/
 - Берёт список репозиториев в реестре.
 - Для каждого репозитория берёт список образов.
 - Применяет правила из конфига сверху вниз (приоритет у верхних).
-- Удаляет старые образы по `keep_latest`.
+- Для образов, попавших под правило, защищает `keep_latest` последних и удаляет только те, что старше `remove_older` (в сутках).
+- Для образов, не попавших ни под одно правило (`unmatched`), оставляет последние `10` и удаляет остальные.
 - В `DRY_RUN=true` только показывает, что было бы удалено.
 
 ## Где настраивать правила
@@ -26,12 +27,15 @@ cleanup_rules:
   logistics_release_app:
     regexp: logistics-service\:.*-release-.*-app-.*
     keep_latest: 10
+    remove_older: 14
   logistics_review:
     regexp: logistics-service\:.*-review-.*
     keep_latest: 1
+    remove_older: 14
   all_release:
     regexp: .*\:.*-release-.*
     keep_latest: 5
+    remove_older: 14
 ```
 
 ## Правила (важно)
@@ -39,8 +43,13 @@ cleanup_rules:
 - Правила применяются по очереди, сверху вниз.
 - Если образ подошёл под первое правило, в следующие правила он уже не попадёт.
 - `regexp` обязателен и должен быть непустой строкой.
-- `keep_latest` — сколько последних образов оставить для этого правила.
-- Образы, которые не подошли ни под одно правило, очищаются по `KEEP_LAST_N`.
+- `keep_latest` — сколько последних образов (внутри правила) всегда оставить.
+- `remove_older` — минимальный возраст образа в сутках для удаления.
+- Оба значения ожидаются как целые числа `>= 0`.
+- Если `keep_latest` не задан/невалиден, используется дефолт `10` (только для `keep_latest`).
+- Если `remove_older` не задан/невалиден, используется дефолт `14` (только для `remove_older`).
+- Для `unmatched` применяется только лимит по количеству: `keep_latest=10`.
+- Если у образа невалидный или отсутствующий `createdAt`, возрастная проверка для него не выполняется (он не удаляется по `remove_older`).
 
 ## Обязательные переменные окружения
 Нужно передать:
@@ -51,7 +60,6 @@ cleanup_rules:
 - `SEL_REGISTRY_ID`
 
 Опционально:
-- `KEEP_LAST_N` (по умолчанию `10`)
 - `DRY_RUN` (`true`/`false`, по умолчанию `false`)
 - `CLEAN_CONFIG_PATH` (по умолчанию `.config/cleanup_rules.yaml`)
 
@@ -70,9 +78,9 @@ pip install --upgrade pip
 pip install requests pyyaml loguru pytest
 ```
 
-2. Задать переменные окружения.
+3. Задать переменные окружения.
 
-3. Запустить:
+4. Запустить:
 ```bash
 python3 cleanup_registry.py
 ```
@@ -103,5 +111,6 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -v tests
 - [cleanup_config.py](cleanup_config.py): загрузка и проверка YAML-конфига.
 - [cleanup_repository.py](cleanup_repository.py): запросы к API реестра (репозитории, образы, удаление).
 - [cleanup_rules_parser.py](cleanup_rules_parser.py): проверка соответствия образов правилам (`regexp`).
-- [cleanup_executor.py](cleanup_executor.py): выбор образов к удалению по `keep_latest`.
+- [cleanup_executor.py](cleanup_executor.py): выбор образов к удалению по `keep_latest` + `remove_older`.
+- [constants.py](constants.py): константы/ключи полей API и конфига (`ImageFields`, `ConfigFields`).
 - [tests/](tests): тесты на `pytest`.

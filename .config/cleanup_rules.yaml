@@ -2,12 +2,16 @@ cleanup_rules:
   logistics_release_app:
     regexp: logistics-service\:.*-release-.*-app-.*
     keep_latest: 10
+    remove_older: 14
   logistics_review:
     regexp: logistics-service\:.*-review-.*
     keep_latest: 1
+    remove_older: 14
   all_release:
     regexp: .*\:.*-release-.*
     keep_latest: 5
+    remove_older: 14
   all_review:
     regexp: .*\:.*-review-.*
     keep_latest: 2
+    remove_older: 14

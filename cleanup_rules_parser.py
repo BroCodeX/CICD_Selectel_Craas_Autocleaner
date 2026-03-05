@@ -1,9 +1,10 @@
 import re
 from loguru import logger
+from constants import ImageFields, ConfigFields
 
 
 def get_image_tags(image):
-    tags = image.get("tags")
+    tags = image.get(ImageFields.TAGS.value)
     if isinstance(tags, list):
         return [t for t in tags if isinstance(t, str)]
     return []
@@ -31,11 +32,11 @@ def split_images_by_rules(repo_name, images, cleanup_rules):
 
     # Rule order: first match wins - images matched by one rule won't be considered for the next ones
     for rule_name, rule in cleanup_rules.items():
-        regexp = rule.get("regexp")
+        regexp = rule.get(ConfigFields.REGEXP.value)
         grouped[rule_name] = []
 
         for image in images:
-            digest = image.get("digest")
+            digest = image.get(ImageFields.DIGEST.value)
             if not digest or digest in assigned:
                 continue
 
@@ -45,7 +46,7 @@ def split_images_by_rules(repo_name, images, cleanup_rules):
 
     unmatched = []
     for image in images:
-        digest = image.get("digest")
+        digest = image.get(ImageFields.DIGEST.value)
         if digest and digest not in assigned:
             unmatched.append(image)
 

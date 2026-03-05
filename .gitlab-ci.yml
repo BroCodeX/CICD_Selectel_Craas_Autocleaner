@@ -16,8 +16,7 @@ stages:
   - cleanup
 
 variables:
-  KEEP_LAST_N: "10"
-  PYTHON_IMAGE: registry.example.ru/devops/docker-images/python:latest
+  PYTHON_IMAGE: registry.example.ru/devops/docker-images/craas-cleanup-python:latest
   DRY_RUN: "true"
 
 .python_env:
@@ -25,7 +24,7 @@ variables:
     name: ${PYTHON_IMAGE}
     entrypoint: [ "" ]
   tags:
-    - some-runner01
+    - some-runner-tag
 
 # ---------------- TESTS ----------------
 run_code_tests:
@@ -66,8 +65,7 @@ registry_cleanup_plan:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $CI_DEFAULT_BRANCH'
     - if: '$CI_PIPELINE_SOURCE == "web"'
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
-      when: never
+    - when: never
 
 # ---------------- CLEANUP ----------------
 registry_cleanup_execute:
