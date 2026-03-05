@@ -113,4 +113,5 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -v tests
 - [cleanup_rules_parser.py](cleanup_rules_parser.py): проверка соответствия образов правилам (`regexp`).
 - [cleanup_executor.py](cleanup_executor.py): выбор образов к удалению по `keep_latest` + `remove_older`.
 - [constants.py](constants.py): константы/ключи полей API и конфига (`ImageFields`, `ConfigFields`).
+- [logger_config.py](logger_config.py): конфиг логгера, с добавлением кастомных Levels.
 - [tests/](tests): тесты на `pytest`.
