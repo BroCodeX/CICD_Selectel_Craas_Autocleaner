@@ -23,7 +23,7 @@ def _handle_api_response(res, context):
     return res.json()
 
 def get_repositories(session, base_url, registry_id, token):
-    logger.info("=== get_repositories() ===")
+    logger.log("HEADER", "=== get_repositories() ===")
 
     url = f"{base_url}/registries/{registry_id}/repositories"
     res = session.get(url, headers=_get_auth_header(token), timeout=15)
@@ -41,7 +41,7 @@ def get_repositories(session, base_url, registry_id, token):
 
 
 def get_images(session, base_url, registry_id, token, repo_name):
-    logger.info(f"=== get_images() repo={repo_name} ===")
+    logger.log("HEADER", f"=== get_images() repo={repo_name} ===")
 
     url = f"{base_url}/registries/{registry_id}/repositories/{repo_name}/images"
     res = session.get(url, headers=_get_auth_header(token), timeout=GET_TIMEOUT)
@@ -59,7 +59,7 @@ def get_images(session, base_url, registry_id, token, repo_name):
 
 
 def delete_image(session, base_url, registry_id, token, repo_name, digest, dry_run):
-    logger.info(f"=== delete_image() repo={repo_name} digest={digest} ===")
+    logger.log("HEADER", f"=== delete_image() repo={repo_name} digest={digest} ===")
 
     if dry_run:
         logger.info(f"[DRY-RUN] Would delete {repo_name} {digest}")

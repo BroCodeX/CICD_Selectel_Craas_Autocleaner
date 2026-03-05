@@ -36,6 +36,7 @@ class Settings:
 
 def setup_logging():
     logger.remove()
+    logger.level("HEADER", no=21, color="<magenta><bold>")
     logger.add(
         sys.stderr,
         format="<level>{time:HH:mm:ss}</level> | <level>{message}</level>",
@@ -61,7 +62,7 @@ def create_session() -> requests.Session:
     return session
 
 def get_auth_token(session: requests.Session, settings: Settings) -> str:
-    logger.info("Requesting authentication token...")
+    logger.log("HEADER", "Requesting authentication token...")
     
     payload = {
         "auth": {
@@ -112,7 +113,7 @@ def main():
         repos = get_repositories(session, BASE_URL, settings.registry_id, token)
         
         if not repos:
-            logger.info("No repositories found.")
+            logger.warning("No repositories found.")
             return
 
         logger.info(f"Repositories to process: {[r['name'] for r in repos]}")
