@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import requests
 from loguru import logger
+from logger_config import setup_logging
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -91,6 +92,7 @@ def get_auth_token(session: requests.Session, settings: Settings) -> str:
     return token
 
 def main():
+    setup_logging()
     settings = Settings()
     settings.validate()
     

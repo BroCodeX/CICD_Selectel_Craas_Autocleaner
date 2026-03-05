@@ -2,7 +2,9 @@ import os
 
 from cleanup_executor import select_images_to_delete
 from cleanup_repository import delete_image
+from logger_config import setup_logging
 
+setup_logging()
 os.environ.setdefault("SEL_REGISTRY_ID", "9975a430-0fd7-4ceb-a1c4-0e73a403ab57")
 
 

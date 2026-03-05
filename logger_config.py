@@ -9,5 +9,3 @@ def setup_logging():
         format="<level>{time:HH:mm:ss}</level> | <level>{message}</level>",
         colorize=True
     )
-
-setup_logging()
