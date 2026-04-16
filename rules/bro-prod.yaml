@@ -1,0 +1,14 @@
+cleanup_rules:
+  buildkit_tests:
+    regexp: build\/.*\:.*
+    keep_latest: 1
+    remove_older: 7
+  releases_cache:
+    regexp: .*-cache\:.*
+    keep_latest: 10
+    remove_older: 14
+  releases:
+    regexp: .*\:release-.*
+    keep_latest: 30
+    remove_older: 60
+

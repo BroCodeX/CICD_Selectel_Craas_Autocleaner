@@ -1,0 +1,13 @@
+cleanup_rules:
+  review:
+    regexp: .*\:review-.*
+    keep_latest: 20
+    remove_older: 30
+  all_dev_cache:
+    regexp: .*-cache\:.*
+    keep_latest: 10
+    remove_older: 14
+  all_dev_images:
+    regexp: .*\:.*
+    keep_latest: 5
+    remove_older: 7

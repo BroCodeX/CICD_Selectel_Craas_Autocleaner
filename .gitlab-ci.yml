@@ -1,3 +1,13 @@
+spec:
+  inputs:
+    registry:
+      description: "Selectel container registry name"
+      options:
+        - bro-dev
+        - bro-prod
+      default: bro-dev
+
+---
 workflow:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -6,9 +16,10 @@ workflow:
       when: always
     - if: $CI_PIPELINE_SOURCE == "web"
       when: always
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: always
-    - when: never
 
 stages:
   - test
@@ -16,7 +27,7 @@ stages:
   - cleanup
 
 variables:
-  PYTHON_IMAGE: registry.example.ru/devops/docker-images/craas-cleanup-python:latest
+  PYTHON_IMAGE: registry.gftech.ru/devops/docker-images/cr-cleanup-python:latest
   DRY_RUN: "true"
 
 .python_env:
@@ -24,7 +35,7 @@ variables:
     name: ${PYTHON_IMAGE}
     entrypoint: [ "" ]
   tags:
-    - some-runner-tag
+    - ops-docker
 
 # ---------------- TESTS ----------------
 run_code_tests:
@@ -52,24 +63,39 @@ run_code_tests:
           - "**/*.yml"
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       changes: *change_files
-    - when: never
 
 # ---------------- PLAN ----------------
-registry_cleanup_plan:
+cleanup_plan:
   extends: .python_env
   needs: 
       - job: "run_code_tests"
         optional: true
   stage: plan
+  environment: $REGISTRY
   script:
     - python cleanup_registry.py
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == $CI_DEFAULT_BRANCH'
+  parallel:
+    matrix:
+      - REGISTRY:
+        - bro-dev
+        - bro-prod
+
+cleanup_plan_$[[ inputs.registry ]]:
+  extends: .python_env
+  needs: 
+      - job: "run_code_tests"
+        optional: true
+  stage: plan
+  environment: $[[ inputs.registry ]]
+  script:
+    - python cleanup_registry.py
+  rules:
     - if: '$CI_PIPELINE_SOURCE == "web"'
-    - when: never
 
 # ---------------- CLEANUP ----------------
-registry_cleanup_execute:
+cleanup_execute_$[[ inputs.registry ]]:
   extends: .python_env
   needs: 
     - job: "run_code_tests"
@@ -77,14 +103,12 @@ registry_cleanup_execute:
     - job: "registry_cleanup_plan"
       optional: true
   stage: cleanup
+  environment: $[[ inputs.registry ]]
   variables:
     DRY_RUN: "false"
   script:
     - python cleanup_registry.py
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "web"'
-      when: manual
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       when: manual
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
-    - when: never

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from cleanup_executor import select_images_to_delete
+from core.cleanup_executor import select_images_to_delete
 
 
 NOW_UTC = datetime(2026, 3, 4, 0, 0, tzinfo=timezone.utc)

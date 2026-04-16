@@ -1,6 +1,6 @@
 import re
 from loguru import logger
-from constants import ImageFields, ConfigFields
+from core.constants import ImageFields, ConfigFields
 
 
 def get_image_tags(image):

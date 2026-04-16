@@ -4,14 +4,14 @@ from dataclasses import dataclass
 
 import requests
 from loguru import logger
-from logger_config import setup_logging
+from config.logger_config import setup_logging
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from cleanup_config import load_cleanup_config
-from cleanup_repository import get_repositories, get_images, delete_image
-from cleanup_executor import select_images_to_delete
-from constants import ImageFields
+from clients.cleanup_repository import get_repositories, get_images, delete_image
+from config.cleanup_config import load_cleanup_config
+from core.cleanup_executor import select_images_to_delete
+from core.constants import ImageFields
 
 AUTH_URL = "https://cloud.api.selcloud.ru/identity/v3/auth/tokens"
 BASE_URL = "https://cr.selcloud.ru/api/v1"

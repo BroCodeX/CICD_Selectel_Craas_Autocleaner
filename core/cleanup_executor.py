@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from loguru import logger
-from cleanup_rules_parser import split_images_by_rules
-from constants import ImageFields, ConfigFields
+from core.cleanup_rules_parser import split_images_by_rules
+from core.constants import ImageFields, ConfigFields
 
 RULE_DEFAULT_KEEP_LATEST = 10
 RULE_DEFAULT_REMOVE_OLDER_DAYS = 14

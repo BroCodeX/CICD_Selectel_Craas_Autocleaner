@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from cleanup_rules_parser import split_images_by_rules
+from core.cleanup_rules_parser import split_images_by_rules
 
 
 def test_priority_top_rule_wins():

@@ -2,9 +2,9 @@ import os
 import sys
 import yaml
 from loguru import logger
-from constants import ConfigFields
+from core.constants import ConfigFields
 
-DEFAULT_CONFIG_PATH = ".config/cleanup_rules.yaml"
+DEFAULT_CONFIG_PATH = "rules/cleanup_rules_default.yaml"
 
 def load_cleanup_config():
     clean_config_path = os.getenv("CLEAN_CONFIG_PATH", DEFAULT_CONFIG_PATH)

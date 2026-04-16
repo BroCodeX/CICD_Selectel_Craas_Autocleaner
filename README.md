@@ -17,7 +17,7 @@ https://docs.selectel.ru/api/craas/
 - В `DRY_RUN=true` только показывает, что было бы удалено.
 
 ## Где настраивать правила
-Файл по умолчанию: [.config/cleanup_rules.yaml](.config/cleanup_rules.yaml)
+Файл по умолчанию: [rules/cleanup_rules_default.yaml"]("rules/cleanup_rules_default.yaml")
 
 Можно задать другой путь через переменную `CLEAN_CONFIG_PATH`.
 
@@ -108,10 +108,10 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -v tests
 
 ## Кратко: какой файл за что отвечает
 - [cleanup_registry.py](cleanup_registry.py): точка входа, получение токена, общий цикл очистки.
-- [cleanup_config.py](cleanup_config.py): загрузка и проверка YAML-конфига.
-- [cleanup_repository.py](cleanup_repository.py): запросы к API реестра (репозитории, образы, удаление).
-- [cleanup_rules_parser.py](cleanup_rules_parser.py): проверка соответствия образов правилам (`regexp`).
-- [cleanup_executor.py](cleanup_executor.py): выбор образов к удалению по `keep_latest` + `remove_older`.
-- [constants.py](constants.py): константы/ключи полей API и конфига (`ImageFields`, `ConfigFields`).
-- [logger_config.py](logger_config.py): конфиг логгера, с добавлением кастомных Levels.
+- [config/cleanup_config.py](config/cleanup_config.py): загрузка и проверка YAML-конфига.
+- [config/logger_config.py](config/logger_config.py): конфиг логгера, с добавлением кастомных Levels.
+- [clients/cleanup_repository.py](clients/cleanup_repository.py): запросы к API реестра (репозитории, образы, удаление).
+- [core/cleanup_rules_parser.py](core/cleanup_rules_parser.py): проверка соответствия образов правилам (`regexp`).
+- [core/cleanup_executor.py](core/cleanup_executor.py): выбор образов к удалению по `keep_latest` + `remove_older`.
+- [core/constants.py](core/constants.py): константы/ключи полей API и конфига (`ImageFields`, `ConfigFields`).
 - [tests/](tests): тесты на `pytest`.
