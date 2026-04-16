@@ -17,7 +17,7 @@ https://docs.selectel.ru/api/craas/
 - В `DRY_RUN=true` только показывает, что было бы удалено.
 
 ## Где настраивать правила
-Файл по умолчанию: ["rules/cleanup_rules_default.yaml"]("rules/cleanup_rules_default.yaml")
+Файл по умолчанию: [rules/cleanup_rules_default.yaml](rules/cleanup_rules_default.yaml)
 
 Можно задать другой путь через переменную `CLEAN_CONFIG_PATH`.
 
