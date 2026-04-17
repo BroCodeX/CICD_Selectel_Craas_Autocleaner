@@ -4,9 +4,9 @@ from urllib.parse import quote
 from loguru import logger
 
 GET_TIMEOUT = 15
-DELETE_TIMEOUT = 10
-DELETE_RETRY_COUNT = 4
-DELETE_RETRY_DELAY = 10
+DELETE_TIMEOUT = 20
+DELETE_RETRY_COUNT = 5
+DELETE_RETRY_DELAY = 30
 
 def _get_auth_header(token) -> dict:
     return {"X-Auth-Token": token}
@@ -61,13 +61,13 @@ def get_images(session, base_url, registry_id, token, repo_name):
     return data
 
 
-def delete_image(session, base_url, registry_id, token, repo_name, digest, tag, dry_run):
+def delete_image(session, base_url, registry_id, token, repo_name, digest, tag, dry_run) -> bool:
     logger.log("HEADER", f"Image to delete: repo={repo_name} tag={tag}")
     short_digest = digest[:16]
 
     if dry_run:
         logger.info(f"[DRY-RUN] Would delete: {repo_name} {tag}:{short_digest}")
-        return
+        return True
 
     url = f"{base_url}/registries/{registry_id}/repositories/{quote(repo_name, safe='')}/{digest}"
 
@@ -77,7 +77,11 @@ def delete_image(session, base_url, registry_id, token, repo_name, digest, tag, 
 
         if res.status_code == 204:
             logger.success(f"Deleted {repo_name} {tag}:{short_digest}")
-            return
+            return True
+
+        if res.status_code == 500:
+            logger.warning(f"Server is not responding. {repo_name} {tag}:{short_digest}")
+            return False
 
         if res.status_code == 409:
             if attempt < DELETE_RETRY_COUNT:
@@ -88,4 +92,4 @@ def delete_image(session, base_url, registry_id, token, repo_name, digest, tag, 
                 time.sleep(DELETE_RETRY_DELAY)
                 continue
             logger.critical(f"Delete failed tag: {tag}:{short_digest} after {DELETE_RETRY_COUNT} attempts: {res.status_code} {res.text}")
-            return
+            return False

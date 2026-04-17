@@ -118,13 +118,15 @@ def main():
         if exclude_repo:
             logger.info(f"Use filter: ('{exclude_repo}'): Repos to apply: {[r['name'] for r in repos]}")
 
+        failed_del_count = []
+
         for repo in repos:
             repo_name = repo["name"]
             logger.info(f"Processing repository: {repo_name}")
 
             images = get_images(session, BASE_URL, settings.registry_id, token, repo_name)
             to_delete = select_images_to_delete(repo_name, images, rules)
-            
+
             if not to_delete:
                 logger.debug(f"{repo_name}: No images match deletion criteria.")
                 continue
@@ -133,9 +135,10 @@ def main():
 
             for img in to_delete:
                 digest = img.get(ImageFields.DIGEST.value)
+                short_digest = digest[:16]
                 tag = img.get(ImageFields.TAGS.value)
-                
-                delete_image(
+
+                check = delete_image(
                     session=session,
                     base_url=BASE_URL,
                     registry_id=settings.registry_id,
@@ -145,6 +148,15 @@ def main():
                     tag=tag,
                     dry_run=settings.dry_run,
                 )
+
+                if not check:
+                    failed_del_count.append(f"{repo_name} {tag}:{short_digest}")
+
+        if failed_del_count:
+            logger.critical(
+                f"Cleanup completed with {len(failed_del_count)} failed deletion(s): {failed_del_count}"
+            )
+            sys.exit(1)
 
     except requests.exceptions.RequestException as e:
         logger.exception(f"Network error: {e}")
