@@ -1,3 +1,4 @@
+exclude_repo: ""
 cleanup_rules:
   buildkit_tests:
     regexp: build\/.*\:.*
@@ -11,4 +12,3 @@ cleanup_rules:
     regexp: .*\:release-.*
     keep_latest: 30
     remove_older: 60
-

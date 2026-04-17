@@ -11,7 +11,10 @@ from urllib3.util.retry import Retry
 from clients.cleanup_repository import get_repositories, get_images, delete_image
 from config.cleanup_config import load_cleanup_config
 from core.cleanup_executor import select_images_to_delete
+from core.cleanup_rules_parser import filter_repos_by_exclude
 from core.constants import ImageFields
+
+from core.constants import RulesFields
 
 AUTH_URL = "https://cloud.api.selcloud.ru/identity/v3/auth/tokens"
 BASE_URL = "https://cr.selcloud.ru/api/v1"
@@ -99,14 +102,21 @@ def main():
     session = create_session()
     
     try:
-        rules = load_cleanup_config()
+        config = load_cleanup_config()
+        rules = config[RulesFields.CLEANUP_RULES.value]
+        exclude_repo = config[RulesFields.EXCLUDE_REPO.value]
+
         token = get_auth_token(session, settings)
-        
+
         repos = get_repositories(session, BASE_URL, settings.registry_id, token)
-        
+
         if not repos:
             logger.warning("No repositories found.")
             return
+
+        repos = filter_repos_by_exclude(repos, exclude_repo)
+        if exclude_repo:
+            logger.info(f"Use filter: ('{exclude_repo}'): Repos to apply: {[r['name'] for r in repos]}")
 
         for repo in repos:
             repo_name = repo["name"]

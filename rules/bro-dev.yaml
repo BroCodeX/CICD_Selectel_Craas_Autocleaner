@@ -1,3 +1,4 @@
+exclude_repo: ""
 cleanup_rules:
   review:
     regexp: .*\:review-.*

@@ -68,7 +68,8 @@ def test_load_config_valid_regexp_does_not_exit(tmp_path, monkeypatch):
     """)
     monkeypatch.setenv("CLEAN_CONFIG_PATH", config_path)
 
-    rules = load_cleanup_config()
+    config = load_cleanup_config()
+    rules = config["cleanup_rules"]
 
     assert "good_rule" in rules
     assert rules["good_rule"]["regexp"] == "myapp:.*-review-.*"

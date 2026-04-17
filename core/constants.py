@@ -11,3 +11,7 @@ class ConfigFields(Enum):
     REGEXP = "regexp"
     KEEP_LATEST = "keep_latest"
     REMOVE_OLDER = "remove_older"
+
+class RulesFields(Enum):
+    EXCLUDE_REPO = "exclude_repo"
+    CLEANUP_RULES = "cleanup_rules"

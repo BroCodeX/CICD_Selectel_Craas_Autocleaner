@@ -10,6 +10,7 @@ https://docs.selectel.ru/api/craas/
 
 ## Что делает
 - Берёт список репозиториев в реестре.
+- Исключает репозитории, подпадающие под `exclude_repo` (если задан).
 - Для каждого репозитория берёт список образов.
 - Применяет правила из конфига сверху вниз (приоритет у верхних).
 - Для образов, попавших под правило, защищает `keep_latest` последних и удаляет только те, что старше `remove_older` (в сутках).
@@ -23,6 +24,7 @@ https://docs.selectel.ru/api/craas/
 
 Пример:
 ```yaml
+exclude_repo: "devsec/.*"    # опционально — исключить репозитории по regexp
 cleanup_rules:
   logistics_release_app:
     regexp: logistics-service\:.*-release-.*-app-.*
@@ -36,6 +38,20 @@ cleanup_rules:
     regexp: .*\:.*-release-.*
     keep_latest: 5
     remove_older: 14
+```
+
+## exclude_repo
+Опциональное поле верхнего уровня в YAML-конфиге. Задаёт regexp, по которому исключаются репозитории **до начала обработки**.
+
+- Матчинг по имени репозитория через `re.search` (частичное совпадение).
+- Если поле отсутствует или пустое — все репозитории обрабатываются как обычно.
+- Невалидный regexp вызывает `sys.exit(1)` при загрузке конфига.
+
+Примеры:
+```yaml
+exclude_repo: "devsec/.*"          # исключить все репо в namespace devsec
+exclude_repo: "^(build|devsec)/"   # исключить build/* и devsec/*
+exclude_repo: "-cache$"            # исключить репо с суффиксом -cache
 ```
 
 ## Правила (важно)
@@ -115,7 +131,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -v tests
 - [config/cleanup_config.py](config/cleanup_config.py): загрузка и проверка YAML-конфига.
 - [config/logger_config.py](config/logger_config.py): конфиг логгера, с добавлением кастомных Levels.
 - [clients/cleanup_repository.py](clients/cleanup_repository.py): запросы к API реестра (репозитории, образы, удаление).
-- [core/cleanup_rules_parser.py](core/cleanup_rules_parser.py): проверка соответствия образов правилам (`regexp`).
+- [core/cleanup_rules_parser.py](core/cleanup_rules_parser.py): проверка соответствия образов правилам (`regexp`), фильтрация репозиториев по `exclude_repo`.
 - [core/cleanup_executor.py](core/cleanup_executor.py): выбор образов к удалению по `keep_latest` + `remove_older`.
 - [core/constants.py](core/constants.py): константы/ключи полей API и конфига (`ImageFields`, `ConfigFields`).
 - [tests/](tests): тесты на `pytest`.

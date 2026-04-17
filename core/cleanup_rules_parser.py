@@ -3,6 +3,12 @@ from loguru import logger
 from core.constants import ImageFields, ConfigFields
 
 
+def filter_repos_by_exclude(repos, exclude_pattern):
+    if not exclude_pattern:
+        return repos
+    return [r for r in repos if not re.search(exclude_pattern, r["name"])]
+
+
 def get_image_tags(image):
     tags = image.get(ImageFields.TAGS.value)
     if isinstance(tags, list):

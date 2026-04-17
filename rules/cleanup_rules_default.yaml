@@ -1,3 +1,4 @@
+exclude_repo: ""
 cleanup_rules:
   logistics_release_app:
     regexp: logistics-service\:.*-release-.*-app-.*
