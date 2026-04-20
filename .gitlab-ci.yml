@@ -27,7 +27,7 @@ stages:
   - cleanup
 
 variables:
-  PYTHON_IMAGE: registry.gftech.ru/devops/docker-images/cr-cleanup-python:latest
+  PYTHON_IMAGE: registry.example.ru/devops/docker-images/cr-cleanup-python:latest
   DRY_RUN: "true"
 
 .python_env:
