@@ -24,15 +24,15 @@ https://docs.selectel.ru/api/craas/
 
 Пример:
 ```yaml
-cleanup_defaults: # опционально — выставление дефолтных значений лимитов для matched образов
+cleanup_defaults: # опционально — default лимиты для matched образов.
   keep_latest: 10
   remove_older: 14
 
-unmatched_defaults: # опционально — выставление дефолтных значений лимитов для unmatched образов.
+unmatched_defaults: # опционально — default лимиты для unmatched образов.
   keep_latest: 10
   remove_older: 14
 
-exclude_repo: "devsec/.*" # опционально — исключить репозитории по regexp
+exclude_repo: "devsec/.*" # опционально — исключить репозитории по regexp.
 
 cleanup_rules:
   logistics_release_app:
