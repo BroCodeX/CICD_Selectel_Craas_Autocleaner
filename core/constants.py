@@ -17,3 +17,13 @@ class RulesFields(Enum):
     CLEANUP_RULES = "cleanup_rules"
     CLEANUP_DEFAULTS = "cleanup_defaults"
     UNMATCHED_DEFAULTS = "unmatched_defaults"
+
+
+FALLBACK_CLEANUP_DEFAULTS = {
+    ConfigFields.KEEP_LATEST.value: 10,
+    ConfigFields.REMOVE_OLDER.value: 14,
+}
+FALLBACK_UNMATCHED_DEFAULTS = {
+    ConfigFields.KEEP_LATEST.value: 10,
+    ConfigFields.REMOVE_OLDER.value: 14,
+}

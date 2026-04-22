@@ -3,19 +3,14 @@ import re
 import sys
 import yaml
 from loguru import logger
-from core.constants import ConfigFields
-from core.constants import RulesFields
+from core.constants import (
+    ConfigFields,
+    RulesFields,
+    FALLBACK_CLEANUP_DEFAULTS,
+    FALLBACK_UNMATCHED_DEFAULTS,
+)
 
 DEFAULT_CONFIG_PATH = "rules/cleanup_rules_default.yaml"
-
-FALLBACK_CLEANUP_DEFAULTS = {
-    ConfigFields.KEEP_LATEST.value: 10,
-    ConfigFields.REMOVE_OLDER.value: 14,
-}
-FALLBACK_UNMATCHED_DEFAULTS = {
-    ConfigFields.KEEP_LATEST.value: 10,
-    ConfigFields.REMOVE_OLDER.value: 14,
-}
 
 
 def validate_regexp(pattern, context):

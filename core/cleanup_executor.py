@@ -1,16 +1,12 @@
 from datetime import datetime, timedelta, timezone
 from loguru import logger
 from core.cleanup_rules_parser import split_images_by_rules
-from core.constants import ImageFields, ConfigFields
-
-FALLBACK_CLEANUP_DEFAULTS = {
-    ConfigFields.KEEP_LATEST.value: 10,
-    ConfigFields.REMOVE_OLDER.value: 14,
-}
-FALLBACK_UNMATCHED_DEFAULTS = {
-    ConfigFields.KEEP_LATEST.value: 10,
-    ConfigFields.REMOVE_OLDER.value: 14,
-}
+from core.constants import (
+    ImageFields,
+    ConfigFields,
+    FALLBACK_CLEANUP_DEFAULTS,
+    FALLBACK_UNMATCHED_DEFAULTS,
+)
 
 
 def _parse_created_at(value):
