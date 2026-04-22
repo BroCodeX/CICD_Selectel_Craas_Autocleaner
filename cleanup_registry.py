@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 from dataclasses import dataclass
 
 import requests
@@ -8,11 +9,10 @@ from config.logger_config import setup_logging
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from clients.cleanup_repository import get_repositories, get_images, delete_image
+from clients.cleanup_repository import get_repositories, get_images, cleanup_repository
 from config.cleanup_config import load_cleanup_config
 from core.cleanup_executor import select_images_to_delete
 from core.cleanup_rules_parser import filter_repos_by_exclude
-from core.constants import ImageFields
 
 from core.constants import RulesFields
 
@@ -20,6 +20,7 @@ AUTH_URL = "https://cloud.api.selcloud.ru/identity/v3/auth/tokens"
 BASE_URL = "https://cr.selcloud.ru/api/v1"
 USER_AGENT = "GitLab-Cleanup-Script/1.1"
 DEFAULT_TIMEOUT = 30
+REPO_CLEANUP_DELAY_SEC = 20
 
 for k in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]:
     os.environ.pop(k, None)
@@ -105,6 +106,8 @@ def main():
         config = load_cleanup_config()
         rules = config[RulesFields.CLEANUP_RULES.value]
         exclude_repo = config[RulesFields.EXCLUDE_REPO.value]
+        cleanup_defaults = config[RulesFields.CLEANUP_DEFAULTS.value]
+        unmatched_defaults = config[RulesFields.UNMATCHED_DEFAULTS.value]
 
         token = get_auth_token(session, settings)
 
@@ -120,12 +123,18 @@ def main():
 
         failed_del_count = []
 
-        for repo in repos:
+        for i, repo in enumerate(repos):
             repo_name = repo["name"]
             logger.info(f"Processing repository: {repo_name}")
 
             images = get_images(session, BASE_URL, settings.registry_id, token, repo_name)
-            to_delete = select_images_to_delete(repo_name, images, rules)
+            to_delete = select_images_to_delete(
+                repo_name,
+                images,
+                rules,
+                cleanup_defaults=cleanup_defaults,
+                unmatched_defaults=unmatched_defaults,
+            )
 
             if not to_delete:
                 logger.debug(f"{repo_name}: No images match deletion criteria.")
@@ -133,28 +142,26 @@ def main():
 
             logger.warning(f"{repo_name}: Found {len(to_delete)} images for deletion")
 
-            for img in to_delete:
-                digest = img.get(ImageFields.DIGEST.value)
-                short_digest = digest[:16]
-                tag = img.get(ImageFields.TAGS.value)
+            success = cleanup_repository(
+                session=session,
+                base_url=BASE_URL,
+                registry_id=settings.registry_id,
+                token=token,
+                repo_name=repo_name,
+                images=to_delete,
+                dry_run=settings.dry_run,
+            )
 
-                check = delete_image(
-                    session=session,
-                    base_url=BASE_URL,
-                    registry_id=settings.registry_id,
-                    token=token,
-                    repo_name=repo_name,
-                    digest=digest,
-                    tag=tag,
-                    dry_run=settings.dry_run,
-                )
+            if not success:
+                failed_del_count.append(repo_name)
 
-                if not check:
-                    failed_del_count.append(f"{repo_name} {tag}:{short_digest}")
+            if not settings.dry_run and i < len(repos) - 1:
+                logger.debug(f"Sleeping {REPO_CLEANUP_DELAY_SEC}s before next repo")
+                time.sleep(REPO_CLEANUP_DELAY_SEC)
 
         if failed_del_count:
             logger.critical(
-                f"Cleanup completed with {len(failed_del_count)} failed deletion(s): {failed_del_count}"
+                f"Cleanup completed with {len(failed_del_count)} failed repo(s): {failed_del_count}"
             )
             sys.exit(1)
 

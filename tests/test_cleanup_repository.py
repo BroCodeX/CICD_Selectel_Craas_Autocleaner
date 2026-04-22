@@ -1,24 +1,41 @@
 """
-Tests for URL encoding of repo names that contain slashes (e.g. "build/buildkit-test").
+Tests for the bulk cleanup endpoint:
+POST /v1/registries/{id}/repositories/{name}/cleanup
 
-The registry API requires slashes in repository names to be percent-encoded (%2F),
-otherwise the API interprets extra path segments as part of the route and returns
-{"error":"failed to list manifests"} or 0 images.
+Body:
+    {
+        "digests": [...],
+        "tags": [...],
+        "disable_gc": false
+    }
 
-Correct:   /repositories/build%2Fbuildkit-test/images
-Incorrect: /repositories/build/buildkit-test/images
+Bulk cleanup is preferred over per-image DELETE because the per-image flow
+breaks the remote API and garbage collector when called too many times in a row.
+
+URL encoding rules (same as the previous DELETE flow):
+- Slashes inside repo names must be percent-encoded (%2F), otherwise the API
+  interprets the extra path segments as part of the route.
 """
-import os
+from unittest.mock import call, patch
+
 import pytest
 
 from config.logger_config import setup_logging
-from clients.cleanup_repository import get_images, delete_image
+from clients.cleanup_repository import get_images, cleanup_repository
 
 setup_logging()
 
 BASE_URL = "https://cr.selcloud.ru/api/v1"
 REGISTRY_ID = "9975a430-0fd7-4ceb-a1c4-0e73a403ab57"
 TOKEN = "test-token"
+
+
+@pytest.fixture(autouse=True)
+def sleep_mock():
+    """Silence real time.sleep in every test so retry loops run instantly.
+    Tests can request this fixture as an argument to inspect sleep calls."""
+    with patch("clients.cleanup_repository.time.sleep") as m:
+        yield m
 
 
 # ---------------------------------------------------------------------------
@@ -39,28 +56,42 @@ class FakeResponse:
 
 
 class FakeSession:
-    """Records the last URL used for GET / DELETE calls."""
+    """Records the last URL/payload used for GET / POST calls.
 
-    def __init__(self, response: FakeResponse):
+    Construct with either a single response (reused for every call) or a
+    `responses` queue (one response per call, in order) to exercise retries.
+    """
+
+    def __init__(self, response: FakeResponse | None = None, responses=None):
         self._response = response
+        self._responses = list(responses) if responses is not None else None
         self.last_get_url: str | None = None
-        self.last_delete_url: str | None = None
+        self.last_post_url: str | None = None
+        self.last_post_json: dict | None = None
+        self.post_call_count: int = 0
 
     def get(self, url, headers=None, timeout=None):
         self.last_get_url = url
         return self._response
 
-    def delete(self, url, headers=None, timeout=None):
-        self.last_delete_url = url
+    def post(self, url, headers=None, json=None, timeout=None):
+        self.last_post_url = url
+        self.last_post_json = json
+        self.post_call_count += 1
+        if self._responses is not None:
+            return self._responses.pop(0)
         return self._response
 
 
+def _img(digest, tags):
+    return {"digest": digest, "tags": tags}
+
+
 # ---------------------------------------------------------------------------
-# get_images — simple repo name (no slash)
+# get_images URL encoding (kept from the previous suite — still relevant)
 # ---------------------------------------------------------------------------
 
 def test_get_images_simple_repo_url():
-    """Simple repo name must not be altered."""
     session = FakeSession(FakeResponse(200, []))
     get_images(session, BASE_URL, REGISTRY_ID, TOKEN, "myapp")
 
@@ -68,12 +99,7 @@ def test_get_images_simple_repo_url():
     assert session.last_get_url == expected
 
 
-# ---------------------------------------------------------------------------
-# get_images — repo name with slash
-# ---------------------------------------------------------------------------
-
 def test_get_images_slash_repo_url_encoded():
-    """Slash in repo name must be percent-encoded as %2F."""
     session = FakeSession(FakeResponse(200, []))
     get_images(session, BASE_URL, REGISTRY_ID, TOKEN, "build/buildkit-test")
 
@@ -81,21 +107,7 @@ def test_get_images_slash_repo_url_encoded():
     assert session.last_get_url == expected
 
 
-def test_get_images_slash_repo_url_not_raw_slash():
-    """Raw slash in the URL path must not appear for nested repo names."""
-    session = FakeSession(FakeResponse(200, []))
-    get_images(session, BASE_URL, REGISTRY_ID, TOKEN, "build/buildkit-test")
-
-    # The URL must not contain a raw slash between 'repositories/' and '/images'
-    # i.e. it must not look like /repositories/build/buildkit-test/images
-    suffix_after_repositories = session.last_get_url.split("/repositories/", 1)[1]
-    assert suffix_after_repositories.startswith("build%2F"), (
-        f"Expected URL-encoded repo segment, got: {session.last_get_url}"
-    )
-
-
 def test_get_images_double_slash_repo_url_encoded():
-    """Deeply nested names (two slashes) must both be encoded."""
     session = FakeSession(FakeResponse(200, []))
     get_images(session, BASE_URL, REGISTRY_ID, TOKEN, "a/b/c")
 
@@ -103,50 +115,241 @@ def test_get_images_double_slash_repo_url_encoded():
     assert session.last_get_url == expected
 
 
-def test_get_images_cache_repo_url_encoded():
-    """Cache-variant repo names with slash must also be encoded."""
-    session = FakeSession(FakeResponse(200, []))
-    get_images(session, BASE_URL, REGISTRY_ID, TOKEN, "build/buildkit-test-cache")
-
-    expected = (
-        f"{BASE_URL}/registries/{REGISTRY_ID}/repositories/build%2Fbuildkit-test-cache/images"
-    )
-    assert session.last_get_url == expected
-
-
 # ---------------------------------------------------------------------------
-# delete_image — repo name with slash
+# cleanup_repository — URL
 # ---------------------------------------------------------------------------
 
-def test_delete_image_simple_repo_url():
-    """Simple repo name must not be altered in delete URL."""
+def test_cleanup_repository_simple_repo_url():
     session = FakeSession(FakeResponse(204))
-    delete_image(session, BASE_URL, REGISTRY_ID, TOKEN, "myapp", "sha256:abc", tag="latest", dry_run=False)
-
-    expected = f"{BASE_URL}/registries/{REGISTRY_ID}/repositories/myapp/sha256:abc"
-    assert session.last_delete_url == expected
-
-
-def test_delete_image_slash_repo_url_encoded():
-    """Slash in repo name must be percent-encoded in delete URL."""
-    session = FakeSession(FakeResponse(204))
-    delete_image(
+    cleanup_repository(
         session, BASE_URL, REGISTRY_ID, TOKEN,
-        "build/buildkit-test", "sha256:deadbeef", tag="latest", dry_run=False
+        "myapp", [_img("sha256:abc", "v1")], dry_run=False,
+    )
+
+    expected = f"{BASE_URL}/registries/{REGISTRY_ID}/repositories/myapp/cleanup"
+    assert session.last_post_url == expected
+
+
+def test_cleanup_repository_slash_repo_url_encoded():
+    session = FakeSession(FakeResponse(204))
+    cleanup_repository(
+        session, BASE_URL, REGISTRY_ID, TOKEN,
+        "build/buildkit-test", [_img("sha256:abc", "v1")], dry_run=False,
     )
 
     expected = (
-        f"{BASE_URL}/registries/{REGISTRY_ID}/repositories/build%2Fbuildkit-test/sha256:deadbeef"
+        f"{BASE_URL}/registries/{REGISTRY_ID}/repositories/build%2Fbuildkit-test/cleanup"
     )
-    assert session.last_delete_url == expected
+    assert session.last_post_url == expected
 
 
-def test_delete_image_dry_run_does_not_call_api():
-    """dry_run=True must not issue any HTTP DELETE request."""
+# ---------------------------------------------------------------------------
+# cleanup_repository — payload
+# ---------------------------------------------------------------------------
+
+def test_cleanup_repository_payload_collects_digests_and_tags():
+    """All digests and tags from the input images must be sent in one POST."""
     session = FakeSession(FakeResponse(204))
-    delete_image(
-        session, BASE_URL, REGISTRY_ID, TOKEN,
-        "build/buildkit-test", "sha256:deadbeef", tag="latest", dry_run=True
+    images = [
+        _img("sha256:aaa", "v1"),
+        _img("sha256:bbb", "v2"),
+        _img("sha256:ccc", "v3"),
+    ]
+    cleanup_repository(
+        session, BASE_URL, REGISTRY_ID, TOKEN, "myapp", images, dry_run=False,
     )
 
-    assert session.last_delete_url is None
+    assert session.post_call_count == 1, "bulk cleanup must issue exactly one request"
+    payload = session.last_post_json
+    assert sorted(payload["digests"]) == ["sha256:aaa", "sha256:bbb", "sha256:ccc"]
+    assert sorted(payload["tags"]) == ["v1", "v2", "v3"]
+
+
+def test_cleanup_repository_payload_handles_tags_as_list():
+    """API returns `tags` as a list per image — every tag must be flattened in."""
+    session = FakeSession(FakeResponse(204))
+    images = [
+        _img("sha256:aaa", ["v1", "v1-alias"]),
+        _img("sha256:bbb", ["v2"]),
+    ]
+    cleanup_repository(
+        session, BASE_URL, REGISTRY_ID, TOKEN, "myapp", images, dry_run=False,
+    )
+
+    payload = session.last_post_json
+    assert sorted(payload["digests"]) == ["sha256:aaa", "sha256:bbb"]
+    assert sorted(payload["tags"]) == ["v1", "v1-alias", "v2"]
+
+
+def test_cleanup_repository_payload_skips_empty_tags():
+    """Untagged images contribute their digest but no tag entry."""
+    session = FakeSession(FakeResponse(204))
+    images = [
+        _img("sha256:aaa", None),
+        _img("sha256:bbb", []),
+        _img("sha256:ccc", "v3"),
+    ]
+    cleanup_repository(
+        session, BASE_URL, REGISTRY_ID, TOKEN, "myapp", images, dry_run=False,
+    )
+
+    payload = session.last_post_json
+    assert sorted(payload["digests"]) == ["sha256:aaa", "sha256:bbb", "sha256:ccc"]
+    assert payload["tags"] == ["v3"]
+
+
+def test_cleanup_repository_payload_disable_gc_default_false():
+    session = FakeSession(FakeResponse(204))
+    cleanup_repository(
+        session, BASE_URL, REGISTRY_ID, TOKEN,
+        "myapp", [_img("sha256:abc", "v1")], dry_run=False,
+    )
+
+    assert session.last_post_json["disable_gc"] is False
+
+
+def test_cleanup_repository_payload_disable_gc_can_be_overridden():
+    session = FakeSession(FakeResponse(204))
+    cleanup_repository(
+        session, BASE_URL, REGISTRY_ID, TOKEN,
+        "myapp", [_img("sha256:abc", "v1")], dry_run=False, disable_gc=True,
+    )
+
+    assert session.last_post_json["disable_gc"] is True
+
+
+# ---------------------------------------------------------------------------
+# cleanup_repository — return value
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("status", [200, 204])
+def test_cleanup_repository_returns_true_on_success_status(status):
+    session = FakeSession(FakeResponse(status))
+    ok = cleanup_repository(
+        session, BASE_URL, REGISTRY_ID, TOKEN,
+        "myapp", [_img("sha256:abc", "v1")], dry_run=False,
+    )
+    assert ok is True
+
+
+@pytest.mark.parametrize("status", [202, 400, 401, 404, 409, 500, 502, 503])
+def test_cleanup_repository_returns_false_on_failure_status(status):
+    session = FakeSession(FakeResponse(status))
+    ok = cleanup_repository(
+        session, BASE_URL, REGISTRY_ID, TOKEN,
+        "myapp", [_img("sha256:abc", "v1")], dry_run=False,
+    )
+    assert ok is False
+
+
+# ---------------------------------------------------------------------------
+# cleanup_repository — dry-run / empty
+# ---------------------------------------------------------------------------
+
+def test_cleanup_repository_dry_run_does_not_call_api():
+    session = FakeSession(FakeResponse(204))
+    ok = cleanup_repository(
+        session, BASE_URL, REGISTRY_ID, TOKEN,
+        "myapp", [_img("sha256:abc", "v1")], dry_run=True,
+    )
+    assert ok is True
+    assert session.post_call_count == 0
+    assert session.last_post_url is None
+
+
+def test_cleanup_repository_no_images_does_not_call_api():
+    """Empty input must short-circuit and never POST."""
+    session = FakeSession(FakeResponse(204))
+    ok = cleanup_repository(
+        session, BASE_URL, REGISTRY_ID, TOKEN, "myapp", [], dry_run=False,
+    )
+    assert ok is True
+    assert session.post_call_count == 0
+
+
+# ---------------------------------------------------------------------------
+# cleanup_repository — retry on non-success status
+# ---------------------------------------------------------------------------
+
+def test_cleanup_repository_retries_then_succeeds(sleep_mock):
+    """A transient failure followed by success must return True and stop retrying."""
+    session = FakeSession(responses=[FakeResponse(500), FakeResponse(204)])
+    ok = cleanup_repository(
+        session, BASE_URL, REGISTRY_ID, TOKEN,
+        "myapp", [_img("sha256:abc", "v1")], dry_run=False,
+    )
+
+    assert ok is True
+    assert session.post_call_count == 2
+    sleep_mock.assert_called_once_with(10)
+
+
+def test_cleanup_repository_retries_default_count_then_gives_up(sleep_mock):
+    """Default is 2 retries in addition to the first call (3 attempts total)."""
+    from clients.cleanup_repository import CLEANUP_RETRY_COUNT
+    assert CLEANUP_RETRY_COUNT == 2
+
+    session = FakeSession(responses=[FakeResponse(500)] * 3)
+    ok = cleanup_repository(
+        session, BASE_URL, REGISTRY_ID, TOKEN,
+        "myapp", [_img("sha256:abc", "v1")], dry_run=False,
+    )
+
+    assert ok is False
+    assert session.post_call_count == 3, "1 initial + 2 retries"
+    assert sleep_mock.call_args_list == [call(10), call(15)], (
+        "first gap is 10s, each subsequent gap adds 5s"
+    )
+
+
+def test_cleanup_repository_retry_delay_pattern_extends_with_step(sleep_mock):
+    """With 3 retries the gaps would be 10s, 15s, 20s — confirms the +5s step."""
+    from clients import cleanup_repository as client_module
+
+    session = FakeSession(responses=[FakeResponse(500)] * 4)
+    with patch.object(client_module, "CLEANUP_RETRY_COUNT", 3):
+        ok = cleanup_repository(
+            session, BASE_URL, REGISTRY_ID, TOKEN,
+            "myapp", [_img("sha256:abc", "v1")], dry_run=False,
+        )
+
+    assert ok is False
+    assert session.post_call_count == 4
+    assert sleep_mock.call_args_list == [call(10), call(15), call(20)]
+
+
+def test_cleanup_repository_no_sleep_when_first_attempt_succeeds(sleep_mock):
+    session = FakeSession(FakeResponse(204))
+    cleanup_repository(
+        session, BASE_URL, REGISTRY_ID, TOKEN,
+        "myapp", [_img("sha256:abc", "v1")], dry_run=False,
+    )
+
+    assert session.post_call_count == 1
+    sleep_mock.assert_not_called()
+
+
+def test_cleanup_repository_dry_run_skips_retry_entirely(sleep_mock):
+    """Dry-run never issues a request, therefore must not retry or sleep."""
+    session = FakeSession(FakeResponse(500))
+    ok = cleanup_repository(
+        session, BASE_URL, REGISTRY_ID, TOKEN,
+        "myapp", [_img("sha256:abc", "v1")], dry_run=True,
+    )
+
+    assert ok is True
+    assert session.post_call_count == 0
+    sleep_mock.assert_not_called()
+
+
+def test_cleanup_repository_retry_sends_same_payload_each_attempt():
+    """Each retry must re-post the same body — retries are not supposed to alter it."""
+    session = FakeSession(responses=[FakeResponse(500), FakeResponse(500), FakeResponse(204)])
+    cleanup_repository(
+        session, BASE_URL, REGISTRY_ID, TOKEN,
+        "myapp", [_img("sha256:abc", "v1"), _img("sha256:def", "v2")], dry_run=False,
+    )
+
+    assert session.post_call_count == 3
+    assert sorted(session.last_post_json["digests"]) == ["sha256:abc", "sha256:def"]
+    assert sorted(session.last_post_json["tags"]) == ["v1", "v2"]

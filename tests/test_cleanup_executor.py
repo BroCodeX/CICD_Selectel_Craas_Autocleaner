@@ -1,11 +1,7 @@
-import os
-
-from clients.cleanup_repository import delete_image
 from config.logger_config import setup_logging
 from core.cleanup_executor import select_images_to_delete
 
 setup_logging()
-os.environ.setdefault("SEL_REGISTRY_ID", "9975a430-0fd7-4ceb-a1c4-0e73a403ab57")
 
 
 def test_select_images_to_delete_by_rule_keep_latest():
@@ -42,35 +38,3 @@ def test_select_images_to_delete_by_rule_keep_latest():
     )
 
     assert [i["digest"] for i in to_delete] == ["sha256:2", "sha256:3"]
-
-
-def test_delete_image_calls_registry_api():
-    class FakeResponse:
-        status_code = 204
-        text = ""
-
-    class FakeSession:
-        def __init__(self):
-            self.url = None
-
-        def delete(self, url, headers=None, timeout=0):
-            self.url = url
-            return FakeResponse()
-
-    session = FakeSession()
-
-    delete_image(
-        session=session,
-        base_url="https://cr.selcloud.ru/api/v1",
-        registry_id=os.environ["SEL_REGISTRY_ID"],
-        token="token-1",
-        repo_name="logistics-service",
-        digest="sha256:abc",
-        tag="latest",
-        dry_run=False,
-    )
-
-    assert session.url == (
-        f"https://cr.selcloud.ru/api/v1/registries/{os.environ['SEL_REGISTRY_ID']}/"
-        "repositories/logistics-service/sha256:abc"
-    )

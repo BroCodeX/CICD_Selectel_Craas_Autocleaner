@@ -3,10 +3,17 @@ from urllib.parse import quote
 
 from loguru import logger
 
+from core.constants import ImageFields
+
 GET_TIMEOUT = 15
-DELETE_TIMEOUT = 20
-DELETE_RETRY_COUNT = 5
-DELETE_RETRY_DELAY = 30
+CLEANUP_TIMEOUT = 120
+
+CLEANUP_RETRY_COUNT = 2
+CLEANUP_RETRY_INITIAL_DELAY = 10
+CLEANUP_RETRY_DELAY_STEP = 5
+
+SUCCESS_STATUSES = {200, 204}
+
 
 def _get_auth_header(token) -> dict:
     return {"X-Auth-Token": token}
@@ -32,7 +39,7 @@ def get_repositories(session, base_url, registry_id, token):
 
     url = f"{base_url}/registries/{registry_id}/repositories"
     res = session.get(url, headers=_get_auth_header(token), timeout=15)
-    
+
     context = f"Registry {registry_id}"
 
     data = _handle_api_response(res, context)
@@ -49,7 +56,7 @@ def get_images(session, base_url, registry_id, token, repo_name):
 
     url = f"{base_url}/registries/{registry_id}/repositories/{quote(repo_name, safe='')}/images"
     res = session.get(url, headers=_get_auth_header(token), timeout=GET_TIMEOUT)
-    
+
     context = f"Repo {repo_name}"
 
     data = _handle_api_response(res, context)
@@ -61,35 +68,65 @@ def get_images(session, base_url, registry_id, token, repo_name):
     return data
 
 
-def delete_image(session, base_url, registry_id, token, repo_name, digest, tag, dry_run) -> bool:
-    logger.log("HEADER", f"Image to delete: repo={repo_name} tag={tag}")
-    short_digest = digest[:16]
+def _build_cleanup_payload(images, disable_gc):
+    digests = []
+    tags = []
+    for img in images:
+        digest = img.get(ImageFields.DIGEST.value)
+        if digest:
+            digests.append(digest)
 
-    if dry_run:
-        logger.info(f"[DRY-RUN] Would delete: {repo_name} {tag}:{short_digest}")
+        img_tags = img.get(ImageFields.TAGS.value)
+        if isinstance(img_tags, list):
+            tags.extend(t for t in img_tags if t)
+        elif img_tags:
+            tags.append(img_tags)
+
+    return {"digests": digests, "tags": tags, "disable_gc": disable_gc}
+
+
+def cleanup_repository(
+    session, base_url, registry_id, token, repo_name, images, dry_run, disable_gc=False
+) -> bool:
+    payload = _build_cleanup_payload(images, disable_gc)
+    digests = payload["digests"]
+    tags = payload["tags"]
+
+    logger.log("HEADER", f"Cleanup repo={repo_name} digests={len(digests)} tags={len(tags)}")
+
+    if not digests and not tags:
+        logger.warning(f"{repo_name}: nothing to cleanup")
         return True
 
-    url = f"{base_url}/registries/{registry_id}/repositories/{quote(repo_name, safe='')}/{digest}"
+    if dry_run:
+        logger.info(
+            f"[DRY-RUN] Would cleanup {repo_name}: digests={len(digests)}, tags={len(tags)}"
+        )
+        return True
 
-    for attempt in range(1, DELETE_RETRY_COUNT + 1):
-        res = session.delete(url, headers=_get_auth_header(token), timeout=DELETE_TIMEOUT)
-        logger.debug(f"Delete status {tag} {short_digest} : {res.status_code}")
+    url = f"{base_url}/registries/{registry_id}/repositories/{quote(repo_name, safe='')}/cleanup"
+    total_attempts = CLEANUP_RETRY_COUNT + 1
 
-        if res.status_code == 204:
-            logger.success(f"Deleted {repo_name} {tag}:{short_digest}")
+    res = None
+    for attempt in range(1, total_attempts + 1):
+        res = session.post(url, headers=_get_auth_header(token), json=payload, timeout=CLEANUP_TIMEOUT)
+
+        if res.status_code in SUCCESS_STATUSES:
+            logger.success(
+                f"Cleanup {repo_name}: removed digests={len(digests)} tags={len(tags)}"
+            )
             return True
 
-        if res.status_code == 500:
-            logger.warning(f"Server is not responding. {repo_name} {tag}:{short_digest}")
-            return False
+        if attempt < total_attempts:
+            delay = CLEANUP_RETRY_INITIAL_DELAY + (attempt - 1) * CLEANUP_RETRY_DELAY_STEP
+            logger.warning(
+                f"Cleanup {repo_name} failed ({res.status_code}): "
+                f"retry {attempt}/{CLEANUP_RETRY_COUNT} in {delay}s"
+            )
+            time.sleep(delay)
 
-        if res.status_code == 409:
-            if attempt < DELETE_RETRY_COUNT:
-                logger.warning(
-                    f"Delete {tag}:{short_digest} got 409 error (garbage collection), "
-                    f"retry {attempt}/{DELETE_RETRY_COUNT - 1} in {DELETE_RETRY_DELAY}s"
-                )
-                time.sleep(DELETE_RETRY_DELAY)
-                continue
-            logger.critical(f"Delete failed tag: {tag}:{short_digest} after {DELETE_RETRY_COUNT} attempts: {res.status_code} {res.text}")
-            return False
+    logger.critical(
+        f"Cleanup failed {repo_name} after {total_attempts} attempts: "
+        f"{res.status_code} {res.text}"
+    )
+    return False

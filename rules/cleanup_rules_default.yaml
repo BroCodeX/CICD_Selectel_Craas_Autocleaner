@@ -1,4 +1,13 @@
 exclude_repo: ""
+
+cleanup_defaults:
+  keep_latest: 10
+  remove_older: 14
+
+unmatched_defaults:
+  keep_latest: 10
+  remove_older: 14
+
 cleanup_rules:
   logistics_release_app:
     regexp: logistics-service\:.*-release-.*-app-.*

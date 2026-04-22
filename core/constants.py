@@ -15,3 +15,5 @@ class ConfigFields(Enum):
 class RulesFields(Enum):
     EXCLUDE_REPO = "exclude_repo"
     CLEANUP_RULES = "cleanup_rules"
+    CLEANUP_DEFAULTS = "cleanup_defaults"
+    UNMATCHED_DEFAULTS = "unmatched_defaults"
