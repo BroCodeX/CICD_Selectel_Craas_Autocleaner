@@ -32,7 +32,7 @@ unmatched_defaults: # опционально — выставление дефо
   keep_latest: 10
   remove_older: 14
 
-exclude_repo: "devsec/.*"    # опционально — исключить репозитории по regexp
+exclude_repo: "devsec/.*" # опционально — исключить репозитории по regexp
 
 cleanup_rules:
   logistics_release_app:
