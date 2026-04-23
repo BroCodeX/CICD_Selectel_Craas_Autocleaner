@@ -273,11 +273,14 @@ def test_cleanup_repository_no_images_does_not_call_api():
 
 def test_cleanup_repository_retries_then_succeeds(sleep_mock):
     """A transient failure followed by success must return True and stop retrying."""
-    session = FakeSession(responses=[FakeResponse(500), FakeResponse(204)])
-    ok = cleanup_repository(
-        session, BASE_URL, REGISTRY_ID, TOKEN,
-        "myapp", [_img("sha256:abc", "v1")], dry_run=False,
-    )
+    from clients import cleanup_repository as client_module
+
+    with patch.object(client_module, "CLEANUP_RETRY_INITIAL_DELAY", 10):
+        session = FakeSession(responses=[FakeResponse(500), FakeResponse(204)])
+        ok = cleanup_repository(
+            session, BASE_URL, REGISTRY_ID, TOKEN,
+            "myapp", [_img("sha256:abc", "v1")], dry_run=False,
+        )
 
     assert ok is True
     assert session.post_call_count == 2
@@ -285,15 +288,19 @@ def test_cleanup_repository_retries_then_succeeds(sleep_mock):
 
 
 def test_cleanup_repository_retries_default_count_then_gives_up(sleep_mock):
-    """Default is 2 retries in addition to the first call (3 attempts total)."""
-    from clients.cleanup_repository import CLEANUP_RETRY_COUNT
-    assert CLEANUP_RETRY_COUNT == 2
+    """With retry_count=2: 1 initial + 2 retries = 3 total attempts."""
+    from clients import cleanup_repository as client_module
 
-    session = FakeSession(responses=[FakeResponse(500)] * 3)
-    ok = cleanup_repository(
-        session, BASE_URL, REGISTRY_ID, TOKEN,
-        "myapp", [_img("sha256:abc", "v1")], dry_run=False,
-    )
+    with (
+        patch.object(client_module, "CLEANUP_RETRY_COUNT", 2),
+        patch.object(client_module, "CLEANUP_RETRY_INITIAL_DELAY", 10),
+        patch.object(client_module, "CLEANUP_RETRY_DELAY_STEP", 5),
+    ):
+        session = FakeSession(responses=[FakeResponse(500)] * 3)
+        ok = cleanup_repository(
+            session, BASE_URL, REGISTRY_ID, TOKEN,
+            "myapp", [_img("sha256:abc", "v1")], dry_run=False,
+        )
 
     assert ok is False
     assert session.post_call_count == 3, "1 initial + 2 retries"
@@ -306,8 +313,12 @@ def test_cleanup_repository_retry_delay_pattern_extends_with_step(sleep_mock):
     """With 3 retries the gaps would be 10s, 15s, 20s — confirms the +5s step."""
     from clients import cleanup_repository as client_module
 
-    session = FakeSession(responses=[FakeResponse(500)] * 4)
-    with patch.object(client_module, "CLEANUP_RETRY_COUNT", 3):
+    with (
+        patch.object(client_module, "CLEANUP_RETRY_COUNT", 3),
+        patch.object(client_module, "CLEANUP_RETRY_INITIAL_DELAY", 10),
+        patch.object(client_module, "CLEANUP_RETRY_DELAY_STEP", 5),
+    ):
+        session = FakeSession(responses=[FakeResponse(500)] * 4)
         ok = cleanup_repository(
             session, BASE_URL, REGISTRY_ID, TOKEN,
             "myapp", [_img("sha256:abc", "v1")], dry_run=False,
