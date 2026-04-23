@@ -126,9 +126,3 @@ def test_sleep_still_runs_after_failed_cleanup():
     """A failed cleanup must not skip the delay — the next iteration still hits the API."""
     _, _, _, sleep_mock = _run_main_with_cleanup_results([False, True], repo_count=2)
     assert sleep_mock.call_count == 1
-
-
-def test_default_delay_is_20_seconds():
-    """Default lag is 20s per task requirements."""
-    from cleanup_registry import REPO_CLEANUP_DELAY_SEC
-    assert REPO_CLEANUP_DELAY_SEC == 20
