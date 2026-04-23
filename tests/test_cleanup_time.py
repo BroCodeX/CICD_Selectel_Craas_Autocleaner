@@ -74,6 +74,7 @@ def test_missing_remove_older_uses_only_remove_older_default():
         repo_name="logistics-service",
         images=images,
         cleanup_rules=rules,
+        cleanup_defaults={"keep_latest": 1, "remove_older": 14},
         now=NOW_UTC,
     )
 
@@ -97,6 +98,7 @@ def test_missing_keep_latest_uses_only_keep_latest_default():
         repo_name="logistics-service",
         images=images,
         cleanup_rules=rules,
+        cleanup_defaults={"keep_latest": 10, "remove_older": 7},
         now=NOW_UTC,
     )
 
