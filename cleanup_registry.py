@@ -9,7 +9,7 @@ from config.logger_config import setup_logging
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from clients.cleanup_repository import get_repositories, get_images, cleanup_repository
+from clients.cleanup_repository import get_repositories, get_images, cleanup_repository, init_gc
 from config.cleanup_config import load_cleanup_config
 from core.cleanup_executor import select_images_to_delete
 from core.cleanup_rules_parser import filter_repos_by_exclude
@@ -20,7 +20,8 @@ AUTH_URL = "https://cloud.api.selcloud.ru/identity/v3/auth/tokens"
 BASE_URL = "https://cr.selcloud.ru/api/v1"
 USER_AGENT = "GitLab-Cleanup-Script/1.1"
 DEFAULT_TIMEOUT = 30
-REPO_CLEANUP_DELAY_SEC = 20
+REPO_CLEANUP_DELAY_SEC = 15
+DISABLE_GC = os.environ.get("DISABLE_GC", "false").lower() in ("1", "true", "yes")
 
 for k in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]:
     os.environ.pop(k, None)
@@ -150,7 +151,8 @@ def main():
                 repo_name=repo_name,
                 images=to_delete,
                 dry_run=settings.dry_run,
-            )
+                disable_gc=DISABLE_GC,
+            )   
 
             if not success:
                 failed_del_count.append(repo_name)
@@ -158,7 +160,9 @@ def main():
             if not settings.dry_run and i < len(repos) - 1:
                 logger.debug(f"Sleeping {REPO_CLEANUP_DELAY_SEC}s before next repo")
                 time.sleep(REPO_CLEANUP_DELAY_SEC)
-
+        
+        init_gc(session, BASE_URL, settings.registry_id, token, DISABLE_GC)
+        
         if failed_del_count:
             logger.critical(
                 f"Cleanup completed with {len(failed_del_count)} failed repo(s): {failed_del_count}"

@@ -40,6 +40,7 @@ def _run_main_with_cleanup_results(cleanup_side_effect, dry_run=False, repo_coun
         patch(f"{MODULE}.get_images", return_value=[]),
         patch(f"{MODULE}.select_images_to_delete", return_value=fake_to_delete),
         patch(f"{MODULE}.cleanup_repository", cleanup_mock),
+        patch(f"{MODULE}.init_gc"),
         patch(f"{MODULE}.logger", logger_mock),
         patch(f"{MODULE}.time.sleep", sleep_mock),
         patch(f"{MODULE}.sys") as mock_sys,

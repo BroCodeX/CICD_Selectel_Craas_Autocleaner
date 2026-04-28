@@ -1,3 +1,4 @@
+import sys
 import time
 from urllib.parse import quote
 
@@ -12,7 +13,9 @@ CLEANUP_RETRY_COUNT = 2
 CLEANUP_RETRY_INITIAL_DELAY = 10
 CLEANUP_RETRY_DELAY_STEP = 5
 
-SUCCESS_STATUSES = {200, 204}
+GC_RETRY_DELAY = 300
+
+SUCCESS_STATUSES = {200, 201, 204}
 
 
 def _get_auth_header(token) -> dict:
@@ -86,8 +89,9 @@ def _build_cleanup_payload(images, disable_gc):
 
 
 def cleanup_repository(
-    session, base_url, registry_id, token, repo_name, images, dry_run, disable_gc=False
+    session, base_url, registry_id, token, repo_name, images, dry_run, disable_gc
 ) -> bool:
+    disable_gc = str(disable_gc).lower()
     payload = _build_cleanup_payload(images, disable_gc)
     digests = payload["digests"]
     tags = payload["tags"]
@@ -130,3 +134,47 @@ def cleanup_repository(
         f"{res.status_code} {res.text}"
     )
     return False
+
+def init_gc(session, base_url, registry_id, token, disable_gc, delete_untagged=True):
+    if not disable_gc:
+        return
+    logger.info("Garbage collection is enabled. Initializing GC process...")
+
+    url = f"{base_url}/registries/{registry_id}/garbage-collection"
+    params = {"delete-untagged": str(delete_untagged).lower()}
+
+    for attempt in range(1, 4):
+        res = session.post(
+            url,
+            headers=_get_auth_header(token),
+            params=params,
+            timeout=GET_TIMEOUT,
+        )
+
+        if res.status_code in SUCCESS_STATUSES:
+            logger.success(f"Registry {registry_id}: garbage collection initiated (201)")
+            return
+
+        if res.status_code == 409:
+            logger.warning(
+                f"Registry {registry_id}: GC already in progress (409). "
+                f"Retry {attempt}/3 in {GC_RETRY_DELAY}s"
+            )
+            time.sleep(GC_RETRY_DELAY)
+            continue
+
+        if res.status_code in (404, 500):
+            logger.critical(
+                f"Registry {registry_id}: GC failed ({res.status_code}) {res.text}"
+            )
+            sys.exit(1)
+
+        logger.critical(
+            f"Registry {registry_id}: unexpected GC response ({res.status_code}) {res.text}"
+        )
+        sys.exit(1)
+
+    logger.warning(
+        f"Registry {registry_id}: GC still in progress after 3 attempts (409). Sleep = {GC_RETRY_DELAY}s"
+    )
+    time.sleep(GC_RETRY_DELAY)
