@@ -171,6 +171,7 @@ def main():
 
     except requests.exceptions.RequestException as e:
         logger.exception(f"Network error: {e}")
+        sys.exit(1)
     except Exception as e:
         logger.exception(f"Fatal error: {e}")
         sys.exit(1)
