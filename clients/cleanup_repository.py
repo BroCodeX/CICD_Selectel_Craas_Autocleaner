@@ -91,7 +91,6 @@ def _build_cleanup_payload(images, disable_gc):
 def cleanup_repository(
     session, base_url, registry_id, token, repo_name, images, dry_run, disable_gc
 ) -> bool:
-    disable_gc = str(disable_gc).lower()
     payload = _build_cleanup_payload(images, disable_gc)
     digests = payload["digests"]
     tags = payload["tags"]

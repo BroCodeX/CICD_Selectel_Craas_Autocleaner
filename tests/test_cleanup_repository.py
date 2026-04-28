@@ -207,7 +207,7 @@ def test_cleanup_repository_payload_disable_gc_default_false():
         "myapp", [_img("sha256:abc", "v1")], dry_run=False, disable_gc=False,
     )
 
-    assert session.last_post_json["disable_gc"] == "false"
+    assert session.last_post_json["disable_gc"] is False
 
 
 def test_cleanup_repository_payload_disable_gc_can_be_overridden():
@@ -217,7 +217,7 @@ def test_cleanup_repository_payload_disable_gc_can_be_overridden():
         "myapp", [_img("sha256:abc", "v1")], dry_run=False, disable_gc=True,
     )
 
-    assert session.last_post_json["disable_gc"] == "true"
+    assert session.last_post_json["disable_gc"] is True
 
 
 # ---------------------------------------------------------------------------
