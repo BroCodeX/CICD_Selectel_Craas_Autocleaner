@@ -161,7 +161,7 @@ def main():
                 logger.debug(f"Sleeping {REPO_CLEANUP_DELAY_SEC}s before next repo")
                 time.sleep(REPO_CLEANUP_DELAY_SEC)
         
-        init_gc(session, BASE_URL, settings.registry_id, token, DISABLE_GC)
+        init_gc(session, BASE_URL, settings.registry_id, token, DISABLE_GC, dry_run=settings.dry_run)
         
         if failed_del_count:
             logger.critical(

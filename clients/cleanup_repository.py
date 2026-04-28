@@ -135,13 +135,17 @@ def cleanup_repository(
     )
     return False
 
-def init_gc(session, base_url, registry_id, token, disable_gc, delete_untagged=True):
+def init_gc(session, base_url, registry_id, token, disable_gc, dry_run=False, delete_untagged=True):
     if not disable_gc:
         return
     logger.info("Garbage collection is enabled. Initializing GC process...")
 
     url = f"{base_url}/registries/{registry_id}/garbage-collection"
     params = {"delete-untagged": str(delete_untagged).lower()}
+
+    if dry_run:
+        logger.info(f"[DRY-RUN] Would initiate GC for registry {registry_id} with params: {params}")
+        return
 
     for attempt in range(1, 4):
         res = session.post(
