@@ -2,12 +2,16 @@ import sys
 import time
 from urllib.parse import quote
 
+import requests
 from loguru import logger
 
 from core.constants import ImageFields
 
-GET_TIMEOUT = 15
+GET_TIMEOUT = 60
 CLEANUP_TIMEOUT = 120
+
+GET_RETRY_COUNT = 2
+GET_RETRY_DELAY = 30
 
 CLEANUP_RETRY_COUNT = 2
 CLEANUP_RETRY_INITIAL_DELAY = 10
@@ -20,6 +24,22 @@ SUCCESS_STATUSES = {200, 201, 204}
 
 def _get_auth_header(token) -> dict:
     return {"X-Auth-Token": token}
+
+def _get_with_retry(session, url, token, context):
+    total_attempts = GET_RETRY_COUNT + 1
+    for attempt in range(1, total_attempts + 1):
+        try:
+            return session.get(url, headers=_get_auth_header(token), timeout=GET_TIMEOUT)
+        except requests.exceptions.RequestException as e:
+            if attempt < total_attempts:
+                logger.warning(
+                    f"{context}: network error (attempt {attempt}/{total_attempts}), "
+                    f"retry in {GET_RETRY_DELAY}s: {e}"
+                )
+                time.sleep(GET_RETRY_DELAY)
+            else:
+                logger.critical(f"{context}: network error after {total_attempts} attempts: {e}")
+                raise
 
 def _handle_api_response(res, context):
     if res.status_code == 204:
@@ -41,9 +61,8 @@ def get_repositories(session, base_url, registry_id, token):
     logger.log("HEADER", "Get repositories")
 
     url = f"{base_url}/registries/{registry_id}/repositories"
-    res = session.get(url, headers=_get_auth_header(token), timeout=15)
-
     context = f"Registry {registry_id}"
+    res = _get_with_retry(session, url, token, context)
 
     data = _handle_api_response(res, context)
     if not isinstance(data, list):
@@ -58,9 +77,8 @@ def get_images(session, base_url, registry_id, token, repo_name):
     logger.log("HEADER", f"Get images in repository: {repo_name}")
 
     url = f"{base_url}/registries/{registry_id}/repositories/{quote(repo_name, safe='')}/images"
-    res = session.get(url, headers=_get_auth_header(token), timeout=GET_TIMEOUT)
-
     context = f"Repo {repo_name}"
+    res = _get_with_retry(session, url, token, context)
 
     data = _handle_api_response(res, context)
     if not isinstance(data, list):
