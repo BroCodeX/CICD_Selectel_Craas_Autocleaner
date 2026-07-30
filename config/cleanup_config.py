@@ -70,6 +70,18 @@ def parse_and_validate(raw: dict) -> dict:
 
         validate_regexp(regexp, f"rule '{rule_name}'")
 
+        save_regexps = rule.get(ConfigFields.SAVE_REGEXPS.value, [])
+        if not isinstance(save_regexps, list):
+            logger.critical(f"Rule '{rule_name}': 'save_regexps' must be a list")
+            sys.exit(1)
+        for i, pattern in enumerate(save_regexps):
+            if not isinstance(pattern, str):
+                logger.critical(
+                    f"Rule '{rule_name}': save_regexps[{i}] must be a string, got {pattern!r}"
+                )
+                sys.exit(1)
+            validate_regexp(pattern, f"rule '{rule_name}' save_regexps[{i}]")
+
     exclude_repo = raw.get(RulesFields.EXCLUDE_REPO.value, "") or None
     if exclude_repo is not None:
         validate_regexp(exclude_repo,  f"exclude '{ RulesFields.EXCLUDE_REPO.value}'")

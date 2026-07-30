@@ -1,13 +1,18 @@
-exclude_repo: ""
+cleanup_defaults: # default лимиты для matched образов.
+  keep_latest: 10
+  remove_older: 14
+
+unmatched_defaults: # default лимиты для unmatched образов.
+  keep_latest: 10
+  remove_older: 14
+
+exclude_repo: "images/.*"
+
 cleanup_rules:
   buildkit_tests:
     regexp: build\/.*\:.*
     keep_latest: 1
     remove_older: 7
-  releases_cache:
-    regexp: .*-cache\:.*
-    keep_latest: 10
-    remove_older: 14
   releases:
     regexp: .*\:release-.*
     keep_latest: 30

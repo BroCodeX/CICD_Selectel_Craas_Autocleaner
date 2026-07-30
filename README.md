@@ -32,7 +32,7 @@ unmatched_defaults: # опционально — default лимиты для unm
   keep_latest: 10
   remove_older: 14
 
-exclude_repo: "devsec/.*" # опционально — исключить репозитории по regexp.
+exclude_repo: "devsec/.*" # опционально — исключить репозитории по regexp
 
 cleanup_rules:
   logistics_release_app:
@@ -47,6 +47,53 @@ cleanup_rules:
     regexp: .*\:.*-release-.*
     keep_latest: 5
     remove_older: 14
+  review_clusters:
+    regexp: gf-stock\/app\:.*
+    keep_latest: 1
+    remove_older: 2
+    save_regexps:
+      - "review-clusters-.+"
+```
+
+### save_regexps
+
+Опциональное поле внутри правила. Задаёт список regexp'ов, которые применяются **последовательно** (AND-логика) к образам, уже попавшим под правило по основному `regexp`.
+
+- Образы, прошедшие **все** `save_regexps`, выделяются в отдельную группу (`saved`), остальные — в группу `non_saved`.
+- **Обе группы** независимо обрабатываются правилами `keep_latest` и `remove_older`.
+- Это гарантирует, что saved-образы получают собственную квоту `keep_latest`, не конкурируя с non_saved-образами.
+- Если поле отсутствует или пустое (`[]`) — все образы обрабатываются как одна группа.
+- Каждый regexp матчится по строке `<repo>:<tag>` (как и основной `regexp`).
+- Невалидный regexp вызывает `sys.exit(1)` при загрузке конфига.
+
+**Логика работы:**
+1. Основной `regexp` группирует образы по правилам (first-match-wins).
+2. `save_regexps` последовательно разделяет группу на `saved` и `non_saved`.
+3. `keep_latest` применяется к каждой группе независимо — защищает N последних в каждой.
+4. `remove_older` применяется к оставшимся кандидатам в каждой группе.
+
+Пример: `keep_latest: 1, remove_older: 2`, внутри правила 3 saved-образа и 3 non_saved-образа:
+```yaml
+cleanup_rules:
+  review:
+    regexp: gf-stock\/app\:.*
+    keep_latest: 1
+    remove_older: 2
+    save_regexps:
+      - "review-clusters-.+"
+```
+Saved группа сохраняет 1 последний, non_saved группа сохраняет 1 последний. Остальные 4 удаляются если старше 2 дней.
+
+Ещё пример: `keep_latest: 0` — обе группы удаляют все образы старше `remove_older`:
+```yaml
+cleanup_rules:
+  review:
+    regexp: .*\:release-.*
+    keep_latest: 0
+    remove_older: 14
+    save_regexps:
+      - "release-stable-.+"
+      - ".*-v2$"
 ```
 
 ## exclude_repo
@@ -75,6 +122,7 @@ exclude_repo: "-cache$"            # исключить репо с суффик
 - Если `remove_older` не задан/невалиден, используется дефолт `14` (только для `remove_older`).
 - Для `unmatched` и `matched` применяются правила очистки, описанные в дефолтных секциях. По умолчанию: `10` копий и `14` суток.
 - Если у образа невалидный или отсутствующий `createdAt`, возрастная проверка для него не выполняется (он не удаляется по `remove_older`).
+- `save_regexps` (опционально) — список regexp'ов, разделяющих образы правила на saved и non_saved группы. Каждая группа независимо обрабатывается `keep_latest`/`remove_older`. Saved-образы получают собственную квоту `keep_latest`.
 
 ## Обязательные переменные окружения
 Нужно передать:
@@ -140,7 +188,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -v tests
 - [config/cleanup_config.py](config/cleanup_config.py): загрузка и проверка YAML-конфига.
 - [config/logger_config.py](config/logger_config.py): конфиг логгера, с добавлением кастомных Levels.
 - [clients/cleanup_repository.py](clients/cleanup_repository.py): запросы к API реестра (репозитории, образы, удаление).
-- [core/cleanup_rules_parser.py](core/cleanup_rules_parser.py): проверка соответствия образов правилам (`regexp`), фильтрация репозиториев по `exclude_repo`.
+- [core/cleanup_rules_parser.py](core/cleanup_rules_parser.py): проверка соответствия образов правилам (`regexp`), фильтрация репозиториев по `exclude_repo`, последовательная защита образов по `save_regexps`.
 - [core/cleanup_executor.py](core/cleanup_executor.py): выбор образов к удалению по `keep_latest` + `remove_older`.
 - [core/constants.py](core/constants.py): константы/ключи полей API и конфига (`ImageFields`, `ConfigFields`).
 - [tests/](tests): тесты на `pytest`.

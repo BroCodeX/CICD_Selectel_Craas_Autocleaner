@@ -57,3 +57,20 @@ def split_images_by_rules(repo_name, images, cleanup_rules):
             unmatched.append(image)
 
     return grouped, unmatched
+
+
+def filter_saved_images(repo_name, images, save_regexps):
+    if not save_regexps:
+        return []
+
+    result = images
+    for regexp in save_regexps:
+        narrowed = []
+        for image in result:
+            if image_matches_regexp(repo_name, image, regexp):
+                narrowed.append(image)
+        result = narrowed
+        if not result:
+            return []
+
+    return result

@@ -25,3 +25,12 @@ cleanup_rules:
     regexp: .*\:.*-review-.*
     keep_latest: 2
     remove_older: 14
+  # Example: save_regexps splits matched images into saved/non_saved groups.
+  # Both groups independently follow keep_latest and remove_older.
+  # This guarantees saved images get their own keep_latest allocation.
+  # example_rule:
+  #   regexp: gf-stock\/app\:.*
+  #   keep_latest: 1
+  #   remove_older: 2
+  #   save_regexps:
+  #     - "review-clusters-.+"

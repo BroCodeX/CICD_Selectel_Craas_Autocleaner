@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from core.cleanup_rules_parser import split_images_by_rules
+from core.cleanup_rules_parser import split_images_by_rules, filter_saved_images
 
 
 def test_priority_top_rule_wins():
@@ -230,3 +230,142 @@ def test_mix_tagged_and_untagged_images():
 
     assert [i["digest"] for i in grouped["catch_all"]] == ["sha256:tagged"]
     assert [i["digest"] for i in unmatched] == ["sha256:untagged"]
+
+
+# ---------------------------------------------------------------------------
+# filter_saved_images — unit tests (sequential AND, returns images to protect)
+# ---------------------------------------------------------------------------
+
+def test_save_regexps_none_returns_empty():
+    images = [
+        {"digest": "sha256:1", "tags": ["master-001"]},
+        {"digest": "sha256:2", "tags": ["review-001"]},
+    ]
+    result = filter_saved_images("gf-stock/app", images, None)
+    assert result == []
+
+
+def test_save_regexps_empty_list_returns_empty():
+    images = [
+        {"digest": "sha256:1", "tags": ["master-001"]},
+        {"digest": "sha256:2", "tags": ["review-001"]},
+    ]
+    result = filter_saved_images("gf-stock/app", images, [])
+    assert result == []
+
+
+def test_single_save_regexp_filters_images():
+    images = [
+        {"digest": "sha256:1", "tags": ["review-clusters-370252"]},
+        {"digest": "sha256:2", "tags": ["review-whmsk1-370040"]},
+        {"digest": "sha256:3", "tags": ["master-whmsk1-370040"]},
+    ]
+    result = filter_saved_images(
+        "gf-stock/app",
+        images,
+        [r".*\:review-.*"],
+    )
+    assert [i["digest"] for i in result] == ["sha256:1", "sha256:2"]
+
+
+def test_two_save_regexps_narrows_sequentially():
+    images = [
+        {"digest": "sha256:1", "tags": ["review-clusters-370252"]},
+        {"digest": "sha256:2", "tags": ["review-whmsk1-370040"]},
+        {"digest": "sha256:3", "tags": ["master-whmsk1-370040"]},
+    ]
+    result = filter_saved_images(
+        "gf-stock/app",
+        images,
+        [r".*\:review-.*", r"review-clusters-.+"],
+    )
+    assert [i["digest"] for i in result] == ["sha256:1"]
+
+
+def test_three_save_regexps_narrows_fully():
+    images = [
+        {"digest": "sha256:a", "tags": ["review-clusters-370252"]},
+        {"digest": "sha256:b", "tags": ["review-clusters-370040"]},
+    ]
+    result = filter_saved_images(
+        "myapp",
+        images,
+        [r".*\:review-.*", r".*clusters-.*", r".*-370252$"],
+    )
+    assert [i["digest"] for i in result] == ["sha256:a"]
+
+
+def test_save_regexp_matches_nothing_returns_empty():
+    images = [
+        {"digest": "sha256:1", "tags": ["release-001"]},
+        {"digest": "sha256:2", "tags": ["release-002"]},
+    ]
+    result = filter_saved_images(
+        "myapp",
+        images,
+        [r"no-match-at-all"],
+    )
+    assert result == []
+
+
+def test_save_regexp_pass_all_then_none():
+    images = [
+        {"digest": "sha256:1", "tags": ["release-001"]},
+        {"digest": "sha256:2", "tags": ["release-002"]},
+    ]
+    result = filter_saved_images(
+        "myapp",
+        images,
+        [r".*", r"no-match"],
+    )
+    assert result == []
+
+
+def test_untagged_image_filtered_out_by_save_regexp():
+    images = [
+        {"digest": "sha256:1", "tags": ["release-001"]},
+        {"digest": "sha256:2", "tags": []},
+    ]
+    result = filter_saved_images(
+        "myapp",
+        images,
+        [r".*\:release-.*"],
+    )
+    assert [i["digest"] for i in result] == ["sha256:1"]
+
+
+def test_invalid_save_regexp_raises():
+    images = [
+        {"digest": "sha256:1", "tags": ["tag"]},
+    ]
+    with pytest.raises(re.error):
+        filter_saved_images(
+            "myapp",
+            images,
+            [r"([unclosed"],
+        )
+
+
+def test_save_regexp_only_matches_repo_name():
+    images = [
+        {"digest": "sha256:1", "tags": ["v1"]},
+        {"digest": "sha256:2", "tags": ["v2"]},
+    ]
+    result = filter_saved_images(
+        "gf-stock/app",
+        images,
+        [r"^gf-stock/app:.*"],
+    )
+    assert [i["digest"] for i in result] == ["sha256:1", "sha256:2"]
+
+
+def test_save_regexp_wrong_repo_no_match():
+    images = [
+        {"digest": "sha256:1", "tags": ["v1"]},
+    ]
+    result = filter_saved_images(
+        "gf-mcp/app",
+        images,
+        [r"^gf-stock/app:.*"],
+    )
+    assert result == []
