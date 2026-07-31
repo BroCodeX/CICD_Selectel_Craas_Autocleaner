@@ -121,7 +121,7 @@ def cleanup_repository(
 
     if dry_run:
         logger.info(
-            f"[DRY-RUN] Would cleanup {repo_name}: digests={len(digests)}, tags={len(tags)}"
+            f"[DRY-RUN] Would cleanup {repo_name}: digests={len(digests)}, tags={tags}"
         )
         return True
 
@@ -134,7 +134,7 @@ def cleanup_repository(
 
         if res.status_code in SUCCESS_STATUSES:
             logger.success(
-                f"Cleanup {repo_name}: removed digests={len(digests)} tags={len(tags)}"
+                f"Cleanup {repo_name}: removed digests={len(digests)} tags={tags}"
             )
             return True
 

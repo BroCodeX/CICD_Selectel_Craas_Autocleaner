@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from loguru import logger
-from core.cleanup_rules_parser import split_images_by_rules, filter_saved_images
+from core.cleanup_rules_parser import split_images_by_rules, image_matches_regexp
 from core.constants import (
     ImageFields,
     ConfigFields,
@@ -87,15 +87,32 @@ def select_images_to_delete(
         save_regexps = rule.get(ConfigFields.SAVE_REGEXPS.value, [])
 
         if save_regexps:
-            saved = filter_saved_images(repo_name, rule_images, save_regexps)
-            saved_digests = {img.get(ImageFields.DIGEST.value) for img in saved}
-            non_saved = [img for img in rule_images if img.get(ImageFields.DIGEST.value) not in saved_digests]
+            all_saved_digests = set()
+            total_matched = len(rule_images)
+            logger.info(
+                f"Rule: {rule_name}: matched images: {total_matched}, "
+                f"keep latest: {keep_latest}, remove older: {remove_older_days} days"
+            )
 
-            saved_protected = saved[:keep_latest]
-            saved_candidates = saved[len(saved_protected):]
-            saved_to_delete = [
-                img for img in saved_candidates if _is_older_than_days(img, remove_older_days, now_utc)
-            ]
+            for regexp in save_regexps:
+                saved = [img for img in rule_images if image_matches_regexp(repo_name, img, regexp)]
+                saved_digests = {img.get(ImageFields.DIGEST.value) for img in saved}
+                all_saved_digests |= saved_digests
+
+                saved_protected = saved[:keep_latest]
+                saved_candidates = saved[len(saved_protected):]
+                saved_to_delete_grp = [
+                    img for img in saved_candidates if _is_older_than_days(img, remove_older_days, now_utc)
+                ]
+
+                logger.info(
+                    f"Rule: {rule_name}: saved_group regexp='{regexp}' size={len(saved)} "
+                    f"(protected={len(saved_protected)}, to_delete={len(saved_to_delete_grp)})"
+                )
+
+                to_delete.extend(saved_to_delete_grp)
+
+            non_saved = [img for img in rule_images if img.get(ImageFields.DIGEST.value) not in all_saved_digests]
 
             non_saved_protected = non_saved[:keep_latest]
             non_saved_candidates = non_saved[len(non_saved_protected):]
@@ -103,19 +120,11 @@ def select_images_to_delete(
                 img for img in non_saved_candidates if _is_older_than_days(img, remove_older_days, now_utc)
             ]
 
-            total_matched = len(rule_images)
             logger.info(
-                f"Rule: {rule_name}: matched images: {total_matched}, "
-                f"keep latest: {keep_latest}, remove older: {remove_older_days} days"
-            )
-            logger.info(
-                f"Rule: {rule_name}: saved_group={len(saved)} "
-                f"(protected={len(saved_protected)}, to_delete={len(saved_to_delete)}), "
-                f"non_saved_group={len(non_saved)} "
+                f"Rule: {rule_name}: non_saved_group={len(non_saved)} "
                 f"(protected={len(non_saved_protected)}, to_delete={len(non_saved_to_delete)})"
             )
 
-            to_delete.extend(saved_to_delete)
             to_delete.extend(non_saved_to_delete)
         else:
             protected = rule_images[:keep_latest]
